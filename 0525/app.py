@@ -1,3 +1,4 @@
+import os
 import time
 import math
 import cv2
@@ -7,9 +8,13 @@ import traceback
 import datetime      
 import requests      
 import mediapipe as mp
-from openai import OpenAI # 🚀 改用 OpenAI 套件來連接 NVIDIA API
+from openai import OpenAI
 from flask import Flask, render_template, Response
 from flask_socketio import SocketIO
+from dotenv import load_dotenv # 🚀 引入 dotenv 套件
+
+# 🚀 載入 .env 檔案中的環境變數
+load_dotenv()
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
@@ -20,22 +25,23 @@ frame_lock = threading.Lock()
 # ==========================================
 # 💡 Webhook 與 API 設定區
 # ==========================================
-# 改為空字串，將由前端設定傳入
+# Discord Webhook 改為空字串，由前端設定傳入
 DISCORD_WEBHOOK_URL = "" 
 GAS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCrhnTksMeiIdJbw9o3ks7HsNwxIjSz5qWwhTRFANWMSnVznCU6rjHK89AgoThLfV7/exec" 
 
-# 🚀 貼上你的 NVIDIA API Key (通常以 nvapi- 開頭)
-NVIDIA_API_KEY = "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"  
+# 🔒 透過 os.getenv 安全讀取環境變數，不再寫死在程式碼裡
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")  
 
 DAILY_REPORT_TIME = "18:00"  
 
 # 🚀 初始化 NVIDIA API Client
-if NVIDIA_API_KEY and NVIDIA_API_KEY != "YOUR_NVIDIA_API_KEY_HERE":
+if NVIDIA_API_KEY:
     nvidia_client = OpenAI(
         base_url="https://integrate.api.nvidia.com/v1",
         api_key=NVIDIA_API_KEY
     )
 else:
+    print("⚠️ [警告] 找不到 NVIDIA_API_KEY，AI 建議功能將被停用。請檢查 .env 檔案。")
     nvidia_client = None
 
 system_state = {
@@ -75,7 +81,7 @@ def get_head_turn_direction(face_landmarks, iw, ih):
     return "TURNED" if (dl / dr) > 1.8 or (dl / dr) < 0.55 else "CENTER"
 
 # ==========================================
-# 🚀 新增：NVIDIA API 專屬健康建議生成器
+# 🚀 AI 健康建議生成器 (NVIDIA)
 # ==========================================
 def get_ai_advice(time_str, alerts):
     if not nvidia_client:
@@ -94,7 +100,7 @@ def get_ai_advice(time_str, alerts):
         - 環境光線太暗次數：{alerts['light']} 次
         """
         
-        # 呼叫 NVIDIA API (這裡我們使用 meta/llama-3.1-70b-instruct，你也可以換成其他模型)
+        # 呼叫 NVIDIA API
         completion = nvidia_client.chat.completions.create(
             model="google/gemma-4-31b-it",
             messages=[{"role": "user", "content": prompt}],
@@ -126,7 +132,7 @@ def send_discord_report(report_type="daily", is_manual=False):
             time_str = f"{hours} 小時 {minutes} 分鐘 {seconds} 秒"
             alerts = system_state["alert_counts"]
             
-            # 🚀 呼叫 NVIDIA AI 產生個人化建議
+            # 產生 AI 建議
             ai_advice = get_ai_advice(time_str, alerts)
             
             title = "📊 PulseAI 今日健康報告" if not is_manual else "🧪 PulseAI 系統測試 (日報)"
@@ -147,7 +153,7 @@ def send_discord_report(report_type="daily", is_manual=False):
             hours, remainder = divmod(int(total_time), 3600)
             time_str = f"{hours} 小時 {remainder//60} 分鐘"
             
-            # 🚀 呼叫 NVIDIA AI 產生週報建議
+            # 產生週報 AI 建議
             ai_advice = get_ai_advice(time_str, total_alerts)
             
             title = "📅 PulseAI 一週健康總結報告" if not is_manual else "🧪 PulseAI 系統測試 (週報)"
@@ -451,7 +457,7 @@ def handle_fetch_cloud():
     except Exception as e:
         socketio.emit('cloud_data_response', {"error": str(e)})
 
-# 🚀 接收前端設定的 Webhook 網址
+# 接收前端設定的 Webhook 網址
 @socketio.on('update_discord_webhook')
 def handle_update_webhook(data):
     global DISCORD_WEBHOOK_URL
