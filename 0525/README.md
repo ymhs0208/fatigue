@@ -7,7 +7,7 @@
 ## ✨ 核心功能 (Features)
 
 1. **🍅 智能番茄鐘與自動運動引導**
-   - 內建 25 分鐘專注模式，倒數結束後自動切換至「運動模式」。
+   - 內建 90分鐘、52分鐘、25分鐘與自訂專注模式，倒數結束後自動切換至「運動模式」。
    - 引導使用者進行：雙手握拳伸展 (Knuckle Stretch)、頭部轉動 (Neck Stretch)、雙手向上伸展 (Arm Stretch)，並透過 AI 判定動作是否確實完成。
 
 2. **👁️ 邊緣運算即時健康偵測 (Edge AI Vision)**
@@ -52,4 +52,4 @@
 ### 2. 安裝必要套件
 請打開終端機 (Terminal / CMD) 並執行以下指令安裝所需套件：
 ```bash
-pip install opencv-python numpy requests mediapipe openai Flask flask-socketio
+pip install opencv-python numpy requests mediapipe openai Flask flask-socketio python-dotenv
