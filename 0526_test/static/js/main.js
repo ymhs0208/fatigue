@@ -13,20 +13,7 @@ let lastAlertMsg = "";  // 追蹤目前的警告文字，避免重複發送系�
 let prevStates = { eyes: "OPEN", distance: "GOOD", shoulders: "BALANCED", mode: "CALIBRATION", light: "GOOD" };
 
 // ==========================================
-// 🤖 TTS 語音合成助理
-// ==========================================
-function speak(text) {
-    if (isMuted || !('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel(); // 中斷前面的語音，避免排隊卡頓
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'zh-TW';
-    utterance.rate = 1.15;
-    utterance.pitch = 1.1;
-    window.speechSynthesis.speak(utterance);
-}
-
-// ==========================================
-// 🔘 音效與語音總開關 (加入記憶功能)
+// 🔘 音效開關 (加入記憶功能)
 // ==========================================
 function toggleVoice() {
     isMuted = !isMuted;
@@ -43,9 +30,7 @@ function toggleVoice() {
                 alertSound.volume = 1; 
             }).catch(e => console.log("音效測試失敗", e));
         }
-        speak("Pulse AI 語音助理已啟動");
     } else {
-        window.speechSynthesis.cancel();
         if (alertSound && !alertSound.paused) alertSound.pause();
     }
 }
@@ -66,7 +51,7 @@ function updateVoiceUI() {
         btn.classList.add('border-emerald-300', 'bg-emerald-50'); 
         btn.classList.remove('border-transparent');
         icon.className = "fa-solid fa-volume-high text-emerald-600";
-        text.innerText = "語音開啟"; 
+        text.innerText = "音效開啟"; 
         text.classList.replace('text-slate-500', 'text-emerald-700');
     }
 }
@@ -207,20 +192,14 @@ socket.on('state_update', function (state) {
             }
         }
         
-        // 【聽覺】只要有不良狀態，就一直響鈴 + 一直碎碎唸！
+        // 【聽覺】只要有不良狀態，就持續響鈴
         if (!isMuted) {
-            // 1. 持續播放警告音效
+            // 持續播放警告音效
             if (alertSound && alertSound.paused) {
                 alertSound.play().catch(e => console.log("音效被阻擋", e));
             }
-            
-            // 2. 持續 TTS 碎碎唸 (只要 AI 嘴巴空下來，就立刻再唸一次)
-            if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
-                speak(currentAlert);
-            }
         } else {
-            // 如果在發出警告時，使用者按下了靜音，立刻強制閉嘴並停止音效
-            window.speechSynthesis.cancel();
+            // 如果在發出警告時，使用者按下了靜音，立刻停止音效
             if (alertSound && !alertSound.paused) {
                 alertSound.pause();
                 alertSound.currentTime = 0;
@@ -236,13 +215,8 @@ socket.on('state_update', function (state) {
             alertSound.pause();
             alertSound.currentTime = 0;
         }
-        window.speechSynthesis.cancel(); // 只要一坐好，立刻停止未說完的警告
     }
 
-    // --- 2. 運動休息時間提醒 (這部分維持只講一次，避免干擾運動) ---
-    if (state.mode === "EXERCISE_HAND" && prevStates.mode === "WORK" && !isMuted) {
-        speak("專注時間結束，請起立活動一下身體吧。");
-    }
     prevStates.mode = state.mode; // 更新狀態快取供運動判斷使用
 
     // --- 3. 更新 UI 介面數字與進度條 ---
