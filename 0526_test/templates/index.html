@@ -140,10 +140,22 @@
 
                 <div id="overlay-absent" class="overlay-layer bg-white/95 hidden"><div class="p-10 rounded-3xl bg-white border border-red-100 shadow-2xl text-center"><i class="fa-solid fa-user-astronaut text-6xl text-red-500 mb-6"></i><h2 class="text-3xl font-black text-slate-800 mb-3">無法偵測到使用者</h2></div></div>
                 <div id="overlay-calib" class="overlay-layer bg-slate-50/95 hidden"><div class="relative flex flex-col items-center"><i class="fa-solid fa-crosshairs text-6xl text-cyan-500 mb-8 animate-spin" style="animation-duration: 4s;"></i><h2 class="text-3xl font-black text-slate-800 mb-3">環境與特徵校正中</h2><div class="w-80 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm"><div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden"><div id="calib-bar" class="h-full bg-cyan-400" style="width: 0%"></div></div></div></div></div>
-                <div id="overlay-exercise" class="overlay-layer bg-indigo-50/95 hidden border-4 border-indigo-400"><div class="mb-10 text-center flex flex-col gap-1">
-    <h2 id="ex-title-zh" class="text-5xl md:text-6xl font-black text-slate-800 tracking-wide">休息時間</h2>
-    <p id="ex-title-en" class="text-xl md:text-2xl font-bold text-slate-400 uppercase tracking-[0.2em]">BREAK TIME</p>
-</div><div class="flex items-baseline gap-2 bg-white px-8 py-4 rounded-3xl border border-indigo-100"><span id="ex-progress" class="text-8xl font-black text-cyan-500">0</span><span class="text-4xl text-slate-400">/ <span id="ex-total">5</span></span></div><div class="bg-white px-10 py-5 rounded-2xl border border-cyan-200 mt-8"><span id="ex-status" class="text-2xl font-bold text-amber-500">WAITING</span></div></div>
+                
+                <div id="overlay-exercise" class="absolute inset-0 flex flex-col items-center justify-end pb-8 bg-slate-900/40 hidden z-30 transition-all border-4 border-indigo-400 rounded-[2rem]">
+                    <div class="bg-white/95 backdrop-blur-md px-8 py-5 rounded-3xl shadow-2xl flex flex-col items-center gap-3 border border-indigo-100 w-11/12 max-w-sm">
+                        <div class="text-center">
+                            <h2 id="ex-title-zh" class="text-2xl font-black text-slate-800 tracking-wide">休息時間</h2>
+                            <p id="ex-title-en" class="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">BREAK TIME</p>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span id="ex-progress" class="text-5xl font-black text-cyan-500">0</span>
+                            <span class="text-2xl text-slate-400">/ <span id="ex-total">5</span></span>
+                        </div>
+                        <div class="w-full bg-slate-50 px-4 py-2 rounded-xl border border-cyan-100 text-center">
+                            <span id="ex-status" class="text-sm font-bold text-amber-500">WAITING</span>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="flex justify-between items-center px-5 py-3 bg-white/90 rounded-xl mt-1 border border-slate-200 shadow-sm"><span class="text-xs font-bold text-slate-500"><i class="fa-solid fa-microchip text-cyan-500"></i> AI Vision Engine</span><span id="conn-status-text" class="text-xs font-bold text-green-500 flex items-center gap-2">連線中</span></div>
         </section>
