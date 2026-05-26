@@ -155,19 +155,20 @@ socket.on('state_update', function (state) {
     
     // --- 1. 判斷目前是否有任何不良狀態 ---
     let currentAlert = "";
+    let alertDetails = [];
     
     // 💡 只有在「工作專注模式 (WORK)」時，才允許觸發不良狀態警報！
     if (state.mode === "WORK") {
-        if (state.eyes === "CLOSED") {
-            currentAlert = "偵測到眼部疲勞，請閉眼休息一下。";
-        } else if (state.mouth === "YAWN/COVER") {
-            currentAlert = "您似乎有點想睡，要不要站起來喝口水？";
-        } else if (state.shoulders === "UNEVEN") {
-            currentAlert = "請注意高低肩，幫我調整一下坐姿喔。";
-        } else if (state.distance === "TOO CLOSE") {
-            currentAlert = "距離螢幕太近囉，請稍微往後退。";
-        } else if (state.light === "TOO DARK") {
-            currentAlert = "環境光線不足，請打開檯燈保護眼睛。";
+        // 改為獨立的 if 判斷，支援「同時」多重警告
+        if (state.eyes === "CLOSED") alertDetails.push("眼部疲勞");
+        if (state.shoulders === "UNEVEN") alertDetails.push("高低肩狀態");
+        if (state.distance === "TOO CLOSE") alertDetails.push("螢幕距離太近");
+        if (state.light === "TOO DARK") alertDetails.push("環境光源不足");
+        if (state.mouth === "YAWN/COVER") alertDetails.push("精神不濟 (打哈欠)");
+        
+        // 如果有任何警告，組合通知文字
+        if (alertDetails.length > 0) {
+            currentAlert = "偵測到：" + alertDetails.join("、") + "！請調整您的姿勢或稍作休息。";
         }
     }
 
@@ -214,6 +215,31 @@ socket.on('state_update', function (state) {
         if (alertSound && !alertSound.paused) {
             alertSound.pause();
             alertSound.currentTime = 0;
+        }
+    }
+
+    // --- 2. 運動休息時間系統通知 ---
+    if (state.mode === "EXERCISE_HAND" && prevStates.mode === "WORK") {
+        // 發送系統通知
+        if ("Notification" in window && Notification.permission === "granted") {
+            const exNotification = new Notification("PulseAI 休息時間 ☕", {
+                body: "專注時間結束，請起立活動一下身體吧！",
+                requireInteraction: true // 設為 true 讓通知停留在畫面上，直到使用者點擊
+            });
+            
+            exNotification.onclick = function() {
+                window.focus(); // 點擊通知將網頁叫回最上層
+                this.close();
+            };
+        }
+        
+        // 如果沒有靜音，額外播放一小段鈴聲提醒
+        if (!isMuted && alertSound) {
+            alertSound.play().catch(e => console.log("音效被阻擋", e));
+            setTimeout(() => {
+                alertSound.pause();
+                alertSound.currentTime = 0;
+            }, 1500); // 響 1.5 秒後自動停止
         }
     }
 
