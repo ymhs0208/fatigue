@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PulseAI | 智能辦公健康助理</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="min-h-screen p-4 md:p-6 lg:p-8 flex flex-col relative">
+
+    <header class="max-w-7xl mx-auto w-full flex flex-col xl:flex-row justify-between items-center mb-8 bg-white/95 px-6 py-4 rounded-[2rem] border border-slate-200 shadow-sm z-40 gap-5 transition-all">
+        
+        <div class="flex items-center gap-4 w-full xl:w-auto justify-center xl:justify-start">
+            <div class="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-400 to-indigo-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                <div class="absolute inset-[2px] bg-white rounded-[14px] flex items-center justify-center">
+                    <i class="fa-solid fa-shield-heart text-xl text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-indigo-500"></i>
+                </div>
+            </div>
+            <h1 class="text-2xl font-black tracking-wider text-slate-800">PULSE<span class="text-cyan-500 font-bold">AI</span></h1>
+        </div>
+
+        <div class="flex flex-wrap justify-center xl:justify-end items-center gap-3 xl:gap-4 w-full xl:w-auto">
+            
+            <div class="bg-slate-100 p-1.5 rounded-full flex flex-wrap justify-center gap-1 border border-slate-200 shadow-inner" id="header-timer-buttons">
+                <button id="btn-header-25m" onclick="setPomodoro(1500, this, true)" class="btn-active text-xs font-bold text-slate-600 px-4 py-2 rounded-full transition-all border border-transparent">25分</button>
+                <button id="btn-header-30s" onclick="setPomodoro(30, this, true)" class="text-xs font-bold text-slate-500 px-4 py-2 rounded-full hover:bg-white transition-all border border-transparent">30秒測試</button>
+            </div>
+
+            <div class="h-6 w-px bg-slate-200 hidden lg:block"></div>
+
+            <div class="flex flex-wrap justify-center gap-2">
+                <button onclick="openDashboard()" class="glass-panel text-slate-600 px-4 py-2.5 rounded-full hover:border-cyan-300 font-bold text-xs flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line text-cyan-500 text-sm"></i> 雲端數據
+                </button>
+                
+                <button onclick="toggleVoice()" id="btn-voice" class="glass-panel text-slate-500 px-4 py-2.5 rounded-full transition-all duration-300 flex items-center gap-2 hover:bg-white">
+                    <i id="icon-voice" class="fa-solid fa-volume-xmark text-slate-400 text-sm transition-colors"></i><span class="text-xs font-bold tracking-wide" id="text-voice">靜音</span>
+                </button>
+
+                <button onclick="toggleCameraDisplay()" id="btn-camera" class="glass-panel text-emerald-700 px-4 py-2.5 rounded-full transition-all duration-300 flex items-center gap-2 border-emerald-300 bg-emerald-50 hover:bg-white group">
+                    <i id="icon-camera" class="fa-solid fa-video text-emerald-600 text-sm transition-colors"></i><span class="text-xs font-bold tracking-wide" id="text-camera">畫面開啟</span>
+                </button>
+
+                <button onclick="openSettings()" class="glass-panel text-slate-600 px-4 py-2.5 rounded-full hover:border-cyan-300 font-bold text-xs flex items-center gap-2 shadow-sm border-cyan-100 bg-cyan-50/30">
+                    <i class="fa-solid fa-gear text-cyan-600 text-sm"></i> 系統與時間設定
+                </button>
+            </div>
+
+            <div class="flex bg-indigo-50/60 p-1.5 rounded-full border border-indigo-100 shadow-sm gap-1">
+                <button onclick="sendReport('daily')" id="btn-report-daily" class="text-indigo-600 px-4 py-2 rounded-full hover:bg-white hover:shadow-sm font-bold text-xs flex items-center gap-1.5 transition-all">
+                    <i class="fa-brands fa-discord text-sm"></i><span id="report-text-daily">發日報</span>
+                </button>
+                <button onclick="sendReport('weekly')" id="btn-report-weekly" class="text-fuchsia-600 px-4 py-2 rounded-full hover:bg-white hover:shadow-sm font-bold text-xs flex items-center gap-1.5 transition-all">
+                    <i class="fa-brands fa-discord text-sm"></i><span id="report-text-weekly">發週報</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div id="dashboard-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center transition-opacity opacity-0">
+        <div class="bg-white w-11/12 max-w-5xl rounded-[2rem] p-8 shadow-2xl relative">
+            <button onclick="closeDashboard()" class="absolute top-6 right-6 w-10 h-10 bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+            <h2 class="text-3xl font-black text-slate-800 mb-2"><i class="fa-solid fa-cloud text-cyan-500 mr-2"></i>健康趨勢雲端儀表板</h2>
+            <p class="text-slate-500 mb-6">資料由 Google Apps Script 即時載入您的試算表歷史紀錄。</p>
+            <div id="chart-loading" class="w-full h-80 flex flex-col items-center justify-center bg-slate-50 rounded-2xl border border-slate-200">
+                <i class="fa-solid fa-circle-notch fa-spin text-4xl text-cyan-400 mb-4"></i>
+                <p class="text-slate-500 font-mono font-bold tracking-widest">FETCHING DATA...</p>
+            </div>
+            <div class="w-full h-80 hidden" id="chart-container">
+                <canvas id="healthChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center transition-opacity opacity-0">
+        <div class="bg-white w-11/12 max-w-lg rounded-[2rem] p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeSettings()" class="absolute top-6 right-6 w-10 h-10 bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200 flex items-center justify-center transition-colors">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h2 class="text-2xl font-black text-slate-800 mb-6"><i class="fa-solid fa-gear text-slate-500 mr-2"></i>系統設定</h2>
+            
+            <div class="mb-6">
+                <label class="block text-sm font-bold text-slate-700 mb-2">Discord Webhook 網址</label>
+                <div class="flex gap-2">
+                    <input type="text" id="discord-webhook-input" placeholder="https://discord.com/api/webhooks/..." class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all font-mono text-sm">
+                    <button onclick="saveSettings(this)" class="px-5 py-3 rounded-xl font-bold text-white bg-cyan-500 hover:bg-cyan-600 transition-all shadow-md whitespace-nowrap">儲存</button>
+                </div>
+            </div>
+            
+            <div class="mb-2 border-t border-slate-100 pt-6">
+                <h3 class="text-lg font-black text-slate-800 mb-4"><i class="fa-solid fa-stopwatch text-cyan-500 mr-2"></i>專注時間設定</h3>
+                
+                <div class="mb-5">
+                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">快速選擇模式</label>
+                    <div class="flex flex-wrap gap-2" id="timer-buttons">
+                        <button id="btn-mode-90" onclick="setPomodoro(5400, this, false)" class="text-sm font-bold text-slate-600 px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-all flex-grow text-center">90 分鐘<br><span class="text-[10px] text-slate-400 font-normal">深度整合</span></button>
+                        <button id="btn-mode-52" onclick="setPomodoro(3120, this, false)" class="text-sm font-bold text-slate-600 px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-all flex-grow text-center">52 分鐘<br><span class="text-[10px] text-slate-400 font-normal">避免疲勞</span></button>
+                        <button id="btn-mode-25" onclick="setPomodoro(1500, this, false)" class="text-sm font-bold text-cyan-700 px-4 py-2.5 rounded-xl border border-cyan-200 transition-all flex-grow text-center shadow-sm btn-active">25 分鐘<br><span class="text-[10px] text-cyan-600/80 font-normal">番茄鐘</span></button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">或自訂時長 (分鐘)</label>
+                    <div class="flex gap-2 items-end">
+                        <input type="number" id="custom-work-mins" placeholder="輸入分鐘數 (如 45)" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all font-mono text-sm">
+                        <button id="btn-apply-time" onclick="applyCustomTimer()" class="px-5 py-3 rounded-xl font-bold text-white bg-indigo-500 hover:bg-indigo-600 transition-all shadow-md whitespace-nowrap">套用時長</button>
+                    </div>
+                </div>
+                
+                <div class="mt-4 text-xs text-slate-500 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <p class="font-bold text-slate-600 mb-2 text-sm">💡 科學工作法推薦：</p>
+                    <ul class="list-disc pl-5 space-y-1.5">
+                        <li><span class="font-bold text-slate-700">90分鐘：</span>配合生理週期，完美契合大腦學習與專注模式。</li>
+                        <li><span class="font-bold text-slate-700">52分鐘：</span>有效調劑身心，避免認知疲勞。</li>
+                        <li><span class="font-bold text-slate-700">25分鐘：</span>減輕時間焦慮，逼自己集中衝刺。</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <main class="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 flex-grow">
+        <section class="col-span-1 lg:col-span-7 flex flex-col gap-4">
+            <div class="relative rounded-[2rem] overflow-hidden shadow-xl bg-slate-200 border border-slate-300 aspect-video group">
+                <img id="video-stream" src="{{ url_for('video_feed') }}" class="w-full h-full object-cover relative z-10 brightness-105">
+                
+                <div id="overlay-hidden" class="overlay-layer bg-slate-900/95 hidden z-[35]">
+                    <div class="p-10 rounded-3xl border border-slate-700 shadow-2xl text-center bg-slate-800/50 backdrop-blur-md">
+                        <i class="fa-solid fa-video-slash text-6xl text-slate-400 mb-6"></i>
+                        <h2 class="text-2xl font-black text-slate-200 mb-3 tracking-wide">鏡頭畫面已隱藏</h2>
+                        <p class="text-sm font-bold text-slate-400">AI 視覺引擎仍在背景保護您的健康</p>
+                    </div>
+                </div>
+
+                <div id="overlay-absent" class="overlay-layer bg-white/95 hidden"><div class="p-10 rounded-3xl bg-white border border-red-100 shadow-2xl text-center"><i class="fa-solid fa-user-astronaut text-6xl text-red-500 mb-6"></i><h2 class="text-3xl font-black text-slate-800 mb-3">無法偵測到使用者</h2></div></div>
+                <div id="overlay-calib" class="overlay-layer bg-slate-50/95 hidden"><div class="relative flex flex-col items-center"><i class="fa-solid fa-crosshairs text-6xl text-cyan-500 mb-8 animate-spin" style="animation-duration: 4s;"></i><h2 class="text-3xl font-black text-slate-800 mb-3">環境與特徵校正中</h2><div class="w-80 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm"><div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden"><div id="calib-bar" class="h-full bg-cyan-400" style="width: 0%"></div></div></div></div></div>
+                
+                <div id="overlay-exercise" class="absolute inset-0 flex flex-col items-center justify-end pb-8 bg-slate-900/40 hidden z-30 transition-all border-4 border-indigo-400 rounded-[2rem]">
+                    <div class="bg-white/95 backdrop-blur-md px-8 py-5 rounded-3xl shadow-2xl flex flex-col items-center gap-3 border border-indigo-100 w-11/12 max-w-sm">
+                        <div class="text-center">
+                            <h2 id="ex-title-zh" class="text-2xl font-black text-slate-800 tracking-wide">休息時間</h2>
+                            <p id="ex-title-en" class="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">BREAK TIME</p>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span id="ex-progress" class="text-5xl font-black text-cyan-500">0</span>
+                            <span class="text-2xl text-slate-400">/ <span id="ex-total">5</span></span>
+                        </div>
+                        <div class="w-full bg-slate-50 px-4 py-2 rounded-xl border border-cyan-100 text-center">
+                            <span id="ex-status" class="text-sm font-bold text-amber-500">WAITING</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-between items-center px-5 py-3 bg-white/90 rounded-xl mt-1 border border-slate-200 shadow-sm"><span class="text-xs font-bold text-slate-500"><i class="fa-solid fa-microchip text-cyan-500"></i> AI Vision Engine</span><span id="conn-status-text" class="text-xs font-bold text-green-500 flex items-center gap-2">連線中</span></div>
+        </section>
+
+        <section class="col-span-1 lg:col-span-5 flex flex-col gap-4">
+            <div class="glass-panel rounded-[2rem] p-8 relative overflow-hidden group bg-gradient-to-br from-white to-slate-50 shadow-md">
+                <div class="flex justify-between items-end mb-6 relative z-10"><div><p class="text-xs font-bold text-slate-500 mb-2">番茄專注時鐘</p><span class="text-3xl font-black text-slate-800">FOCUS MODE</span></div><div class="text-right"><p class="text-xs font-bold text-slate-500 mb-2">專注倒數</p><p id="timer" class="text-5xl font-mono font-bold text-slate-800">25:00</p></div></div>
+                <div class="w-full h-3 bg-slate-200 rounded-full overflow-hidden mb-5"><div id="work-bar" class="h-full bg-gradient-to-r from-rose-400 to-orange-400 transition-all" style="width: 0%"></div></div>
+                <div class="flex justify-between items-center mt-4 border-t border-slate-200 pt-5"><span class="text-xs font-bold text-slate-500">今日成就</span><div class="flex items-center gap-1.5" id="tomato-container"></div></div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow">
+                <div id="card-shoulders" data-is-alert="false" class="glass-panel p-5 rounded-2xl flex items-center gap-4"><div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 icon-container"><i class="fa-solid fa-scale-balanced text-lg"></i></div><div class="flex-grow"><p class="text-[10px] font-bold text-slate-500">高低肩狀態</p><p id="val-shoulders" class="font-bold text-xl text-slate-800">平衡</p></div><i class="fa-solid fa-circle-check text-green-500 status-icon text-xl"></i></div>
+                <div id="card-eyes" data-is-alert="false" class="glass-panel p-5 rounded-2xl flex items-center gap-4"><div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 icon-container"><i class="fa-solid fa-eye text-lg"></i></div><div class="flex-grow"><p class="text-[10px] font-bold text-slate-500">眼部疲勞</p><p id="val-eyes" class="font-bold text-xl text-slate-800">正常</p></div><i class="fa-solid fa-circle-check text-green-500 status-icon text-xl"></i></div>
+                <div id="card-mouth" data-is-alert="false" class="glass-panel p-5 rounded-2xl flex items-center gap-4"><div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 icon-container"><i class="fa-solid fa-face-tired text-lg"></i></div><div class="flex-grow"><p class="text-[10px] font-bold text-slate-500">哈欠與摀嘴</p><p id="val-mouth" class="font-bold text-xl text-slate-800">無</p></div><i class="fa-solid fa-circle-check text-green-500 status-icon text-xl"></i></div>
+                <div id="card-dist" data-is-alert="false" class="glass-panel p-5 rounded-2xl flex items-center gap-4"><div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 icon-container"><i class="fa-solid fa-desktop text-lg"></i></div><div class="flex-grow"><p class="text-[10px] font-bold text-slate-500">螢幕距離</p><p id="val-dist" class="font-bold text-xl text-slate-800">適中</p></div><i class="fa-solid fa-circle-check text-green-500 status-icon text-xl"></i></div>
+                <div id="card-light" data-is-alert="false" class="glass-panel p-5 rounded-2xl flex items-center gap-4 md:col-span-2 lg:col-span-1"><div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 icon-container"><i class="fa-solid fa-lightbulb text-lg"></i></div><div class="flex-grow"><p class="text-[10px] font-bold text-slate-500">環境光源</p><p id="val-light" class="font-bold text-xl text-slate-800">明亮</p></div><i class="fa-solid fa-circle-check text-green-500 status-icon text-xl"></i></div>
+            </div>
+        </section>
+    </main>
+
+    <audio id="alert-sound" src="{{ url_for('static', filename='audio/ringball.mp3') }}" preload="auto" loop></audio>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
