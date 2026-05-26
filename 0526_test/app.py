@@ -12,7 +12,8 @@ from openai import OpenAI
 from flask import Flask, render_template, Response
 from flask_socketio import SocketIO
 import webbrowser
-from dotenv import load_dotenv # 🚀 引入 dotenv 套件
+from dotenv import load_dotenv
+
 # 🚀 載入 .env 檔案中的環境變數
 load_dotenv()
 
@@ -25,13 +26,10 @@ frame_lock = threading.Lock()
 # ==========================================
 # 💡 Webhook 與 API 設定區
 # ==========================================
-# Discord Webhook 改為空字串，由前端設定傳入
 DISCORD_WEBHOOK_URL = "" 
 GAS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCrhnTksMeiIdJbw9o3ks7HsNwxIjSz5qWwhTRFANWMSnVznCU6rjHK89AgoThLfV7/exec" 
 
-# 🔒 透過 os.getenv 安全讀取環境變數，不再寫死在程式碼裡
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")  
-
 DAILY_REPORT_TIME = "18:00"  
 
 # 🚀 初始化 NVIDIA API Client
@@ -100,7 +98,6 @@ def get_ai_advice(time_str, alerts):
         - 環境光線太暗次數：{alerts['light']} 次
         """
         
-        # 呼叫 NVIDIA API
         completion = nvidia_client.chat.completions.create(
             model="google/gemma-4-31b-it",
             messages=[{"role": "user", "content": prompt}],
@@ -116,15 +113,13 @@ def get_ai_advice(time_str, alerts):
         return "💡 *AI 建議產生中發生錯誤，請稍後再試。*"
 
 # ==========================================
-# 雲端報告與資料同步
+# ☁️ 雲端報告與資料同步 (🚀 非同步處理)
 # ==========================================
-def send_discord_report(report_type="daily", is_manual=False):
-    print(f"\n👉 [系統提示] 準備發送 {report_type} 報告至 Discord...")
-    
+def _discord_task(report_type, is_manual):
     if not DISCORD_WEBHOOK_URL.startswith("http"):
-        print("❌ [錯誤] Discord 發送失敗：尚未設定 DISCORD_WEBHOOK_URL 網址！請至網頁前端設定。")
-        return False
-    
+        print("❌ [錯誤] Discord 發送失敗：尚未設定 Webhook 網址！")
+        return
+
     try:
         if report_type == "daily":
             hours, remainder = divmod(int(system_state["daily_total_time"]), 3600)
@@ -132,7 +127,6 @@ def send_discord_report(report_type="daily", is_manual=False):
             time_str = f"{hours} 小時 {minutes} 分鐘 {seconds} 秒"
             alerts = system_state["alert_counts"]
             
-            # 產生 AI 建議
             ai_advice = get_ai_advice(time_str, alerts)
             
             title = "📊 PulseAI 今日健康報告" if not is_manual else "🧪 PulseAI 系統測試 (日報)"
@@ -153,7 +147,6 @@ def send_discord_report(report_type="daily", is_manual=False):
             hours, remainder = divmod(int(total_time), 3600)
             time_str = f"{hours} 小時 {remainder//60} 分鐘"
             
-            # 產生週報 AI 建議
             ai_advice = get_ai_advice(time_str, total_alerts)
             
             title = "📅 PulseAI 一週健康總結報告" if not is_manual else "🧪 PulseAI 系統測試 (週報)"
@@ -169,17 +162,21 @@ def send_discord_report(report_type="daily", is_manual=False):
         
         if response.status_code == 204:
             print("✅ [成功] Discord 報告發送完畢！")
-            return True
+            if is_manual: socketio.emit('report_status', {"success": True, "type": report_type})
         else:
             print(f"❌ [錯誤] Discord 拒絕接收。狀態碼: {response.status_code}")
-            return False
+            if is_manual: socketio.emit('report_status', {"success": False, "type": report_type})
             
     except Exception as e:
         print(f"❌ [錯誤] 發送 Discord 發生異常：{e}")
-        return False
+        if is_manual: socketio.emit('report_status', {"success": False, "type": report_type})
 
-def sync_to_cloud():
-    print("👉 [系統提示] 準備同步資料至 Google Sheets...")
+def send_discord_report(report_type="daily", is_manual=False):
+    print(f"\n👉 [系統提示] 準備於背景發送 {report_type} 報告至 Discord...")
+    threading.Thread(target=_discord_task, args=(report_type, is_manual), daemon=True).start()
+    return True 
+
+def _cloud_task():
     if not GAS_WEBHOOK_URL.startswith("http"): 
         print("⚠️ [警告] 尚未設定 GAS_WEBHOOK_URL，跳過雲端同步。")
         return
@@ -199,6 +196,10 @@ def sync_to_cloud():
         else: print(f"❌ [錯誤] Google Sheets 同步失敗。狀態碼: {res.status_code}")
     except Exception as e:
         print(f"❌ [錯誤] 雲端同步連線異常：{e}")
+
+def sync_to_cloud():
+    print("👉 [系統提示] 準備於背景同步資料至 Google Sheets...")
+    threading.Thread(target=_cloud_task, daemon=True).start()
 
 def schedule_worker():
     global has_sent_report_today, weekly_history
@@ -224,12 +225,11 @@ def schedule_worker():
         time.sleep(30)
 
 # ==========================================
-# AI 背景推論引擎 
+# 🤖 AI 背景推論引擎 (包含 FPS、動態模型與繪圖優化)
 # ==========================================
 def ai_worker():
     global global_frame, system_state, force_recalibrate
     
-    # 🟢 重新把這些工具變數定義好，不要加上 # 註解
     mp_drawing = mp.solutions.drawing_utils
     mp_face_mesh = mp.solutions.face_mesh
     mp_hands = mp.solutions.hands
@@ -244,11 +244,17 @@ def ai_worker():
     CALIBRATION_FRAMES = 60 
     TIME_LIMIT_EYES, TIME_LIMIT_SHOULDER, TIME_LIMIT_DIST, TIME_LIMIT_MOUTH = 1.0, 1.5, 1.5, 0.8
     
+    # 🚀 FPS 幀率限制設定
+    TARGET_FPS = 12 
+    frame_interval = 1.0 / TARGET_FPS 
+    
+    # 🚀 工作時是否開啟手部偵測 (設為 False 可節省效能)
+    ENABLE_HANDS_IN_WORK = False
+
     while True:
         try:
             cap = cv2.VideoCapture(0)
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1) 
-            cap.set(cv2.CAP_PROP_FPS, 30) 
             
             if not cap.isOpened():
                 time.sleep(3)
@@ -269,6 +275,8 @@ def ai_worker():
                  mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
                  
                 while cap.isOpened():
+                    loop_start_time = time.time()
+                    
                     if force_recalibrate:
                         system_state["mode"], force_recalibrate = "CALIBRATION", False
                         timer_eyes, timer_posture, timer_shoulder, timer_dist, timer_mouth = 0.0, 0.0, 0.0, 0.0, 0.0
@@ -292,9 +300,19 @@ def ai_worker():
                     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                     
                     current_mode = system_state["mode"]
+                    
+                    # 🚀 按需載入模型
                     face_results = face_mesh.process(image_rgb)
-                    hand_results = hands.process(image_rgb) if current_mode in ["WORK", "EXERCISE_HAND"] else None
-                    pose_results = pose.process(image_rgb) if current_mode in ["WORK", "CALIBRATION", "EXERCISE_ARM"] else None
+                    
+                    if current_mode == "EXERCISE_HAND" or (current_mode == "WORK" and ENABLE_HANDS_IN_WORK):
+                        hand_results = hands.process(image_rgb)
+                    else:
+                        hand_results = None
+                        
+                    if current_mode in ["WORK", "CALIBRATION", "EXERCISE_ARM"]:
+                        pose_results = pose.process(image_rgb) 
+                    else:
+                        pose_results = None
                     
                     image.flags.writeable = True
                     ih, iw = image.shape[:2]
@@ -305,7 +323,9 @@ def ai_worker():
                     if face_results and face_results.multi_face_landmarks:
                         system_state["user_absent"] = False
                         for face_landmarks in face_results.multi_face_landmarks:
-                            if current_mode in ["WORK", "CALIBRATION"]: mp_drawing.draw_landmarks(image, face_landmarks, mp_face_mesh.FACEMESH_CONTOURS, None, mp_drawing_styles.get_default_face_mesh_contours_style())
+                            # 🚀 在頸部運動時也畫出臉部特徵點 (視覺化)
+                            if current_mode in ["WORK", "CALIBRATION", "EXERCISE_NECK"]: 
+                                mp_drawing.draw_landmarks(image, face_landmarks, mp_face_mesh.FACEMESH_CONTOURS, None, mp_drawing_styles.get_default_face_mesh_contours_style())
                             
                             l_eye = [(face_landmarks.landmark[i].x * iw, face_landmarks.landmark[i].y * ih) for i in LEFT_EYE]
                             r_eye = [(face_landmarks.landmark[i].x * iw, face_landmarks.landmark[i].y * ih) for i in RIGHT_EYE]
@@ -323,10 +343,15 @@ def ai_worker():
 
                     if hand_results and hand_results.multi_hand_landmarks and face_results and face_results.multi_face_landmarks:
                         for hand_landmarks in hand_results.multi_hand_landmarks:
+                            # 手部運動時畫出手部骨架
+                            if current_mode == "EXERCISE_HAND":
+                                mp_drawing.draw_landmarks(image, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                                
                             for tip_idx in [8, 12, 16, 20]:
                                 if calculate_distance((hand_landmarks.landmark[tip_idx].x * iw, hand_landmarks.landmark[tip_idx].y * ih), mouth_center) < cover_threshold: is_covering_mouth = True
 
-                    if pose_results and pose_results.pose_landmarks and current_mode in ["WORK", "CALIBRATION"]:
+                    # 🚀 在手臂伸展運動時也畫出全身骨架 (視覺化)
+                    if pose_results and pose_results.pose_landmarks and current_mode in ["WORK", "CALIBRATION", "EXERCISE_ARM"]:
                         mp_drawing.draw_landmarks(image, pose_results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
                         ls_x, ls_y = pose_results.pose_landmarks.landmark[11].x * iw, pose_results.pose_landmarks.landmark[11].y * ih
                         rs_x, rs_y = pose_results.pose_landmarks.landmark[12].x * iw, pose_results.pose_landmarks.landmark[12].y * ih
@@ -387,7 +412,6 @@ def ai_worker():
                             if hand_results and hand_results.multi_hand_landmarks:
                                 fist_count, open_count = 0, 0
                                 for hand_landmarks in hand_results.multi_hand_landmarks:
-                                    mp_drawing.draw_landmarks(image, hand_landmarks, mp_hands.HAND_CONNECTIONS)
                                     if is_fist(hand_landmarks, iw, ih): fist_count += 1
                                     else: open_count += 1
                                 
@@ -428,7 +452,11 @@ def ai_worker():
                     ret, buffer = cv2.imencode('.jpg', image, [cv2.IMWRITE_JPEG_QUALITY, 50])
                     if ret:
                         with frame_lock: global_frame = buffer.tobytes()
-                    time.sleep(0.005) 
+                    
+                    # 🚀 控制睡眠時間以維持穩定幀率
+                    process_time = time.time() - loop_start_time
+                    if process_time < frame_interval:
+                        time.sleep(frame_interval - process_time)
                     
         except Exception as e:
             traceback.print_exc()
@@ -448,10 +476,8 @@ def handle_set_time(data): system_state["target_work_time"], system_state["work_
 @socketio.on('request_discord_report')
 def handle_manual_report(data):
     rtype = data.get("type", "daily") if data else "daily"
-    print(f"\n📥 收到前端請求：手動發送 {rtype} 報告")
-    success = send_discord_report(report_type=rtype, is_manual=True)
-    if rtype == "daily" and success: sync_to_cloud()
-    socketio.emit('report_status', {"success": success, "type": rtype})
+    send_discord_report(report_type=rtype, is_manual=True)
+    if rtype == "daily": sync_to_cloud()
 
 @socketio.on('request_cloud_data')
 def handle_fetch_cloud():
@@ -464,7 +490,6 @@ def handle_fetch_cloud():
     except Exception as e:
         socketio.emit('cloud_data_response', {"error": str(e)})
 
-# 接收前端設定的 Webhook 網址
 @socketio.on('update_discord_webhook')
 def handle_update_webhook(data):
     global DISCORD_WEBHOOK_URL
@@ -491,13 +516,9 @@ if __name__ == '__main__':
     threading.Thread(target=schedule_worker, daemon=True).start()
     print(f"🚀 [PulseAI] 系統已啟動。")
     
-    # ========== 🌐 自動開啟瀏覽器邏輯 ==========
     def open_browser():
         print("🌐 正在自動為您開啟瀏覽器...")
         webbrowser.open_new("http://127.0.0.1:5001")
         
-    # 設定 1.5 秒後執行 open_browser 函數 (給 Flask 一點啟動時間)
     threading.Timer(1.5, open_browser).start()
-    # ==========================================
-
     socketio.run(app, debug=True, host='0.0.0.0', port=5001, use_reloader=False)
