@@ -1,0 +1,47 @@
+/* static/css/style.css */
+
+body {
+    background-color: #f8fafc;
+    background-image: radial-gradient(circle at 15% 50%, rgba(6, 182, 212, 0.08), transparent 35%), radial-gradient(circle at 85% 30%, rgba(99, 102, 241, 0.08), transparent 35%);
+    color: #1e293b; 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+    overflow-x: hidden;
+}
+
+.glass-panel { 
+    background: rgba(255, 255, 255, 0.95); 
+    border: 1px solid rgba(226, 232, 240, 1); 
+    box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.05); 
+    transition: all 0.3s; 
+}
+
+.glass-panel:hover { 
+    border-color: rgba(6, 182, 212, 0.3); 
+    box-shadow: 0 10px 40px -10px rgba(6, 182, 212, 0.1); 
+}
+
+.alert-pulse { 
+    animation: pulse-alert 2s infinite; 
+}
+
+@keyframes pulse-alert { 
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } 
+    50% { box-shadow: 0 0 15px 0 rgba(239, 68, 68, 0.2); } 
+}
+
+.overlay-layer { 
+    position: absolute; 
+    inset: 0; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center; 
+    z-index: 30; 
+    transition: all 0.5s ease; 
+}
+
+.btn-active { 
+    border-color: rgba(14, 165, 233, 0.4) !important; 
+    background: linear-gradient(135deg, rgba(224, 242, 254, 0.9), rgba(186, 230, 253, 0.6)) !important; 
+    color: #0369a1 !important; 
+}
