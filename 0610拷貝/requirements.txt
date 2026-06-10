@@ -1,0 +1,8 @@
+Flask>=3.1,<4
+Flask-SocketIO>=5.5,<6
+gunicorn>=23,<24
+openai>=1.50,<3
+python-dotenv>=1,<2
+requests>=2.32,<3
+simple-websocket>=1.1,<2
+supabase>=2.4,<3
